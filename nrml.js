@@ -1,53 +1,94 @@
-import { getData } from "./mymodule.js ";
-const dataBox=document.getElementById("dataBox");
-document.getElementById("button").addEventListener("click",()=>{
-    dataBox.textContent=getData();
-});;
-// Registration handling
 const registrationForm = document.getElementById("registrationForm");
 const afterRegistration = document.getElementById("afterRegistration");
+const welcomeMessage = document.getElementById("welcomeMessage");
 
+const fetchBtn = document.getElementById("btn");
+const resultBox = document.getElementById("pokemonDisplay");
+const loading = document.getElementById("loading");          
+const searchInput = document.getElementById("searchPokemon");
+const searchBtn = document.getElementById("searchBtn");
+const typeFilter = document.getElementById("typeFilter");
+
+function showLoading() { loading.style.display = "block"; }
+function hideLoading() { loading.style.display = "none"; }
+
+function displayPokemons(pokemons) {
+    resultBox.innerHTML = ""; 
+    pokemons.forEach(p => {
+        resultBox.innerHTML += `
+            <div class="pokemon-card">
+                <h3>${p.name.toUpperCase()}</h3>
+                <img src="${p.sprites.front_default}" alt="${p.name}">
+                <p>Height: ${p.height}</p>
+                <p>Weight: ${p.weight}</p>
+                <button class="favBtn" data-name="${p.name}">❤️ Favorite</button>
+            </div>
+        `;
+    });
+}
+
+// ------------------ Registration ------------------
 registrationForm.addEventListener("submit", (e) => {
-    e.preventDefault(); // prevent page reload
-
-    // Optionally, you can get the entered data
+    e.preventDefault(); 
     const name = document.getElementById("name").value;
     const email = document.getElementById("email").value;
     console.log("Registered:", name, email);
 
-    // Hide registration form
-    registrationForm.style.display = "none";
-
-    // Show Pokémon section
-    afterRegistration.style.display = "block";
+    registrationForm.style.display = "none"; 
+    afterRegistration.style.display = "block"; 
+    welcomeMessage.textContent = `Hi ${name}, here are some Pokémon for you!`;
 });
-document.getElementById("btn").addEventListener("click", () => {
-    const resultBox = document.getElementById("pokemonDisplay");
-    resultBox.innerHTML = "Loading Pokémon...";
-    fetch("https://pokeapi.co/api/v2/pokemon?limit=10")
-        .then(response => response.json()
-        )
-        .then(data => {
-            resultBox.innerHTML = "";
-            const pokemons = data.results;
 
-            pokemons.forEach(p => {
-                fetch(p.url)
-                    .then(res => res.json())
-                    .then(pokeDetails => {
-                        resultBox.innerHTML += `
-                            <div style="margin:10px; padding:10px; border:1px solid #ccc; border-radius:10px; width:200px; display:inline-block; text-align:center;">
-                                <h3>${pokeDetails.name.toUpperCase()}</h3>
-                                <img src="${pokeDetails.sprites.front_default}" alt="${pokeDetails.name}">
-                                <p>Height: ${pokeDetails.height}</p>
-                                <p>Weight: ${pokeDetails.weight}</p>
-                            </div>
-                        `;
-                    });
-            });
-        })
-        .catch(error => {
-            resultBox.textContent = "An error occurred while fetching Pokémon";
-            console.error("Error fetching Pokémon:", error);
-        });
+// ------------------ Fetch first Pokémon ------------------
+fetchBtn.addEventListener("click", async () => {
+    try {
+        showLoading();
+        const res = await fetch("https://pokeapi.co/api/v2/pokemon?limit=5");
+        const data = await res.json();
+        const allPromises = data.results.map(p => fetch(p.url).then(r => r.json()));
+        const allPokemons = await Promise.all(allPromises);
+        displayPokemons(allPokemons);
+    } catch (err) {
+        console.error("Error fetching Pokémon:", err);
+    } finally {
+        hideLoading();
+    }
+});
+
+// ------------------ Search Pokémon ------------------
+searchBtn.addEventListener("click", async () => {
+    const name = searchInput.value.trim().toLowerCase();
+    if (!name) return;
+
+    try {
+        showLoading();
+        const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${name}`);
+        if (!res.ok) throw new Error("Pokémon not found");
+        const p = await res.json();
+        displayPokemons([p]);
+    } catch (err) {
+        console.error(err);
+        resultBox.innerHTML = `<p>${err.message}</p>`;
+    } finally {
+        hideLoading();
+    }
+});
+
+// ------------------ Filter by Type ------------------
+typeFilter.addEventListener("change", async () => {
+    const type = typeFilter.value;
+    if (!type) return;
+
+    try {
+        showLoading();
+        const res = await fetch(`https://pokeapi.co/api/v2/type/${type}`);
+        const data = await res.json();
+        const allPromises = data.pokemon.slice(0, 12).map(p => fetch(p.pokemon.url).then(r => r.json()));
+        const allPokemons = await Promise.all(allPromises);
+        displayPokemons(allPokemons);
+    } catch (err) {
+        console.error(err);
+    } finally {
+        hideLoading();
+    }
 });
